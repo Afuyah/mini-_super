@@ -12,7 +12,7 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'you-will-never-guess')
 
     # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///mini_supermarket.db')
+    SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:WakpFCEZjrKOmisavwiSjjbVLSuqqjQB@junction.proxy.rlwy.net:40841/railway' #os.getenv('DATABASE_URL', 'sqlite:///mini_supermarket.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Redis configuration
