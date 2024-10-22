@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block title %}Sales Screen{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-3 category-container border border-secondary rounded p-3">
+            <h5>Categories</h5>
+            <div class="category-list" id="category-list">
+                {% for category in categories %}
+                <div class="category-item" data-category="{{ category.id }}">
+                    {{ category.name }}
+                </div>
+                {% endfor %}
+            </div>
+            <input type="text" id="search" class="form-control mb-3" placeholder="Search products...">
+        </div>
+
+        <div class="col-md-6 product-container border border-secondary rounded p-3">
+            <h5>Products</h5>
+            <div class="product-list" id="product-list">
+                <p>Loading products...</p> <!-- Loading indicator -->
+            </div>
+            <p id="no-products" style="display: none;">No products found for this category.</p>
+        </div>
+
+        <div class="col-md-3 cart-container border border-secondary rounded p-3">
+            <h5>Cart Summary</h5>
+            <div id="cart-items" class="cart-items"></div>
+            <p>Total: Ksh <span id="total-amount">0.00</span></p>
+            <button id="checkout-btn" class="btn btn-success">Checkout</button>
+        </div>
+    </div>
+
+    <!-- Low Stock Notification -->
+    <div class="alert alert-warning mt-4" id="low-stock-alert" style="display: none;">
+        <strong>Warning!</strong> Some products are low on stock.
+    </div>
+</div>
+
+<script>
+    let cart = [];
+
+    // Fetch products based on category
+    $(document).on('click', '.category-item', function () {
+        const categoryId = $(this).data('category');
+        $('#product-list').html('<p>Loading products...</p>'); // Show loading indicator
+        $('#no-products').hide(); // Hide no-products message
+
+        $.ajax({
+            url: `/sales/api/products/${categoryId}`, // Flask API endpoint to fetch products by category
+            method: 'GET',
+            success: function (data) {
+                if (data.products.length > 0) {
+                    populateProducts(data.products);
+                } else {
+                    $('#product-list').empty(); // Clear product list
+                    $('#no-products').show(); // Show fallback when no products are found
+                }
+            },
+            error: function () {
+                alert('Failed to load products. Please try again.');
+                $('#product-list').empty(); // Clear the product list on error
+            }
+        });
+    });
+
+    function populateProducts(products) {
+        $('#product-list').empty();
+        products.forEach(product => {
+            let lowStockWarning = product.stock < 5 ? `<span class="text-danger">(Low Stock)</span>` : '';
+
+            $('#product-list').append(`
+                <div class="product-item border border-primary rounded p-2 mb-3" data-id="${product.id}">
+                    <h5 class="product-title">${product.name} ${lowStockWarning}</h5>
+                    <p class="product-price">Price: Ksh ${product.price}</p>
+                    <p class="product-stock">Stock: ${product.stock}</p>
+                    <button class="btn btn-primary add-to-cart" 
+                        data-id="${product.id}" 
+                        data-name="${product.name}" 
+                        data-price="${product.price}" 
+                        data-stock="${product.stock}" 
+                        ${product.stock === 0 ? 'disabled' : ''}>
+                        ${product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                    </button>
+                </div>
+            `);
+        });
+    }
+
+    // Handle add to cart functionality
+    $(document).on('click', '.add-to-cart', function () {
+        const productId = $(this).data('id');
+        const productName = $(this).data('name');
+        const productPrice = parseFloat($(this).data('price'));
+        const productStock = parseInt($(this).data('stock'));
+
+        const existingItem = cart.find(item => item.id === productId);
+        if (existingItem) {
+            if (existingItem.quantity < productStock) {
+                existingItem.quantity += 1;
+            } else {
+                alert('Cannot add more of this item. Stock limit reached.');
+                return;
+            }
+        } else {
+            cart.push({ id: productId, name: productName, price: productPrice, quantity: 1 });
+        }
+        updateCart();
+    });
+
+    // Handle removing items from cart
+    $(document).on('click', '.remove-from-cart', function () {
+        const productId = $(this).data('id');
+        cart = cart.filter(item => item.id !== productId);
+        updateCart();
+    });
+
+    // Update the cart summary
+    function updateCart() {
+        $('#cart-items').empty();
+        let total = 0;
+        let lowStockItems = [];
+
+        cart.forEach(item => {
+            $('#cart-items').append(`
+                <div class="cart-item">
+                    ${item.name} - Ksh ${item.price} x ${item.quantity} 
+                    <button class="btn btn-danger btn-sm remove-from-cart" data-id="${item.id}">X</button>
+                </div>
+            `);
+            total += item.price * item.quantity;
+
+            // Check for low stock condition
+            const productStock = parseInt($(`.product-item[data-id="${item.id}"] .add-to-cart`).data('stock'));
+            if (productStock - item.quantity < 5) {
+                lowStockItems.push(item.name);
+            }
+        });
+
+        $('#total-amount').text(total.toFixed(2));
+        if (lowStockItems.length > 0) {
+            $('#low-stock-alert').text(`Low stock for: ${lowStockItems.join(', ')}`).show();
+        } else {
+            $('#low-stock-alert').hide();
+        }
+    }
+
+    // Handle checkout
+    $('#checkout-btn').click(function () {
+        if (cart.length === 0) {
+            alert('Your cart is empty!');
+            return;
+        }
+
+        $(this).prop('disabled', true); // Disable the checkout button
+
+        $.ajax({
+            url: '/sales/checkout', // Adjust to your actual checkout endpoint
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ cart: cart }),
+            success: function (response) {
+                alert('Checkout successful!');
+                cart = []; // Clear cart
+                updateCart(); // Update cart display
+            },
+            error: function () {
+                alert('Checkout failed. Please try again.');
+            },
+            complete: function () {
+                $('#checkout-btn').prop('disabled', false); // Re-enable the checkout button
+            }
+        });
+    });
+
+    // Search functionality for products and categories
+    $('#search').on('input', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        
+        // Filter products by name
+        $('.product-item').filter(function() {
+            $(this).toggle($(this).find('.product-title').text().toLowerCase().indexOf(searchTerm) > -1);
+        });
+
+        // No products found message
+        if ($('#product-list').children(':visible').length === 0) {
+            $('#no-products').show();
+        } else {
+            $('#no-products').hide();
+        }
+
+        // Filter categories by name
+        $('.category-item').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(searchTerm) > -1);
+        });
+    });
+</script>
+
+<style>
+/* Overall styles */
+body {
+    background-color: #f8f9fa;
+}
+
+.container {
+    border: 4px double #007bff; /* Double border around the main container */
+    padding: 20px; /* Padding inside the container */
+}
+
+/* Category styles */
+.category-container,
+.product-container,
+.cart-container {
+    padding: 15px;
+}
+
+/* Category styles */
+.category-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.category-item {
+    padding: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.category-item:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+/* Product styles */
+.product-list {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.product-item {
+    flex-basis: calc(30% - 20px); /* Responsive layout */
+    margin: 10px; /* Spacing between cards */
+    padding: 15px; /* Padding inside each card */
+    border-radius: 8px; /* Rounded corners */
+    background-color: white; /* Card background color */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+.product-item:hover {
+    transform: scale(1.05); /* Slightly enlarge on hover */
+}
+
+.product-title {
+    font-size: 1.1em; /* Increased font size */
+}
+
+/* Cart styles */
+.cart-summary {
+   max-height: 400px;
+   overflow-y: auto; /* Scrollable if too many items */
+   padding-top: 10px; /* Space above the summary */
+}
+</style>
+
+{% endblock %}

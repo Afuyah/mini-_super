@@ -1,0 +1,15 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Daily Sales Report for {{ today.strftime('%B %d, %Y') }}</h1>
+
+    {% if sales %}
+        <!-- Sales table here -->
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            No sales data found for today.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block header_title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Sales Summary</h5>
+            <p><strong>Total Sales:</strong> Ksh {{ total_sales }}</p>
+            <p><strong>Total Revenue:</strong> Ksh {{ total_revenue }}</p>
+            <p><strong>Total Transactions:</strong> {{ total_transactions }}</p>
+            <canvas id="salesTrendsChart"></canvas>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <h5>Low Stock Products</h5>
+            <table class="table table-hover">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Stock Level</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in low_stock_products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.stock }}</td>
+                        
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <h5>Recent Sales</h5>
+            <table class="table table-hover">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Sale ID</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sale in recent_sales %}
+                    <tr data-toggle="modal" data-target="#saleDetailsModal" data-sale-id="{{ sale.id }}">
+                        <td>{{ sale.id }}</td>
+                        <td>{{ sale.date.strftime('%Y-%m-%d') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for Sale Details -->
+    <div class="modal fade" id="saleDetailsModal" tabindex="-1" aria-labelledby="saleDetailsLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="saleDetailsLabel">Sale Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Sale details will be loaded here dynamically -->
+                    <div id="saleDetailsContent">
+                        <p>Loading...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        const ctx = document.getElementById('salesTrendsChart').getContext('2d');
+        const salesTrendsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ sales_trends_labels | tojson }},
+                datasets: [{
+                    label: 'Sales Over Time',
+                    data: {{ sales_trends_data | tojson }},
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    tension: 0.1 // Adds a curve to the line
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        $(document).ready(function() {
+            $('#saleDetailsModal').on('show.bs.modal', function(event) {
+                var button = $(event.relatedTarget); // Button that triggered the modal
+                var saleId = button.data('sale-id'); // Extract sale ID from data attribute
+
+                // AJAX request to get the sale details
+                $.ajax({
+                    url: '/admin/sale-details/' + saleId,
+                    method: 'GET',
+                    success: function(response) {
+                        // Load the sale details into the modal's body
+                        $('#saleDetailsContent').html(response);
+                    },
+                    error: function() {
+                        $('#saleDetailsContent').html('<p>Error loading sale details. Please try again.</p>');
+                    }
+                });
+            });
+        });
+    </script>
+{% endblock %}

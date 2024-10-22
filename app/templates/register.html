@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Register - Mini Supermarket{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h2 class="text-center">Register</h2>
+        <form method="POST" action="{{ url_for('auth.register') }}" class="mt-4">
+            <div class="form-group">
+                <input type="text" name="username" class="form-control" placeholder="Username" required aria-label="Username">
+            </div>
+            <div class="form-group">
+                <input type="password" name="password" class="form-control" placeholder="Password" required aria-label="Password">
+                <!-- Password Strength Meter -->
+                <div id="passwordStrength" class="text-muted"></div>
+            </div>
+            <div class="form-group">
+                <select name="role" class="form-control" required aria-label="Select Role">
+                    <option value="" disabled selected>Select Role</option>
+                    <option value="admin">Admin</option>
+                    <option value="cashier">Cashier</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Register</button>
+        </form>
+        <div class="text-center mt-3">
+            <a href="{{ url_for('auth.login') }}">Already have an account? Login here</a>
+        </div>
+    </div>
+
+    <script>
+        // Password Strength Indicator
+        const passwordInput = document.querySelector('input[name="password"]');
+        const passwordStrength = document.getElementById('passwordStrength');
+
+        passwordInput.addEventListener('input', () => {
+            const value = passwordInput.value;
+            let strength = 'Weak';
+
+            if (value.length >= 8) {
+                strength = 'Medium';
+            }
+            if (value.match(/[A-Z]/) && value.match(/[0-9]/) && value.length >= 10) {
+                strength = 'Strong';
+            }
+
+            passwordStrength.textContent = `Password Strength: ${strength}`;
+            passwordStrength.style.color = strength === 'Weak' ? 'red' : strength === 'Medium' ? 'orange' : 'green';
+        });
+    </script>
+{% endblock %}
