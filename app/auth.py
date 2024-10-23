@@ -90,9 +90,9 @@ def admin_dashboard():
     low_stock_threshold = 10
     low_stock_products = Product.query.filter(Product.stock <= low_stock_threshold).all()
 
-    # Sales trends (for SQLite, using strftime to truncate by month)
+    # Sales trends (for PostgreSQL, using TO_CHAR to truncate by month)
     sales_by_month = db.session.query(
-        func.strftime('%Y-%m', Sale.date).label('month'), 
+        func.to_char(Sale.date, 'YYYY-MM').label('month'), 
         func.sum(Sale.total).label('total_sales')
     ).group_by('month').order_by('month').all()
 
