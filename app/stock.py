@@ -133,8 +133,7 @@ def edit_product(id: int):
 
     product = Product.query.get_or_404(id)
     categories = Category.query.all()
-    suppliers = Supplier.query.all()
-
+  
     if request.method == 'POST':
         try:
             # Validate input
@@ -153,7 +152,7 @@ def edit_product(id: int):
             product.selling_price = selling_price
             product.stock = stock
             product.category_id = request.form['category']
-            product.supplier_id = request.form.get('supplier', None)  # Optional supplier
+            
 
             db.session.commit()
 
