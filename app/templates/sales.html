@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Sales Screen{% endblock %}
+{% block title %}Cashier{% endblock %}
 
 {% block content %}
 <div class="container mt-2">
@@ -19,27 +19,50 @@
 
         <div class="col-md-6 product-container">
             <h5>Products</h5>
-            <div class="product-list" id="product-list">
-            </div>
+            <div class="product-list" id="product-list"></div>
             <p id="no-products" style="display: none;">No products found for this category.</p>
         </div>
-
+        
         <div class="col-md-3 cart-container border border-secondary rounded p-3">
             <h5>Cart Summary</h5>
             <div id="cart-items" class="cart-items"></div>
             <p>Total: Ksh <span id="total-amount">0.00</span></p>
             <button id="checkout-btn" class="btn btn-success">Checkout</button>
+            <!-- Loading indicator -->
+            <div class="alert alert-info" id="checkout-loading" style="display: none;">Processing your checkout...</div>
         </div>
     </div>
 
     <!-- Low Stock Notification -->
-    <div class="alert alert-warning mt-4" id="low-stock-alert" style="display: none;">
-        <strong>Warning!</strong> Some products are low on stock.
-    </div>
+    <div class="alert alert-warning mt-4" id="low-stock-alert" style="display: none;"></div>
 
-    <!-- Checkout Loading Indicator -->
-    <div class="alert alert-info" id="checkout-loading" style="display: none;">Processing your checkout...</div>
+    <!-- Error messages area -->
+    <div class="alert alert-danger" id="error-message" style="display: none;"></div>
 </div>
+
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" role="dialog" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="successModalLabel">Checkout Successful</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                Your checkout has been processed successfully!
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
 
 <!-- Additional Styling -->
 <style>
@@ -48,7 +71,6 @@
         margin: 0 auto; /* Center the container */
     }
 
-    /* Optional: style for the category and product items for better visibility */
     .category-item, .product-item {
         cursor: pointer; /* Indicates clickable items */
     }
@@ -56,9 +78,21 @@
     .category-item:hover, .product-item:hover {
         background-color: #f0f0f0; /* Light background on hover */
     }
+
+    .cart-container {
+        position: sticky;
+        top: 20px; /* Keep the cart visible while scrolling */
+    }
+
+    .cart-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
 </style>
 
 <script>
+    
     let cart = [];
 
     // Fetch products based on category
@@ -86,21 +120,26 @@
     });
 
     function populateProducts(products) {
-        $('#product-list').empty();
+        $('#product-list').empty(); // Clear previous product listings
+
+        if (products.length === 0) {
+            $('#product-list').append('<p class="text-muted">No products available.</p>');
+            return;
+        }
+
         products.forEach(product => {
             let lowStockWarning = product.stock < 5 ? `<span class="text-danger">(Low Stock)</span>` : '';
-
             $('#product-list').append(`
                 <div class="product-item border border-primary rounded p-2 mb-3" data-id="${product.id}">
                     <h5 class="product-title">${product.name} ${lowStockWarning}</h5>
-                    <p class="product-price">Ksh ${product.selling_price}</p>
+                    <p class="product-price">Ksh ${product.selling_price.toFixed(2)}</p>
                     <p class="product-stock">Stock: ${product.stock}</p>
                     <button class="btn btn-primary add-to-cart" 
                         data-id="${product.id}" 
                         data-name="${product.name}" 
                         data-selling-price="${product.selling_price}" 
                         data-stock="${product.stock}" 
-                        ${product.stock === 0 ? 'disabled' : ''}>
+                        ${product.stock === 0 ? 'disabled aria-disabled="true"' : ''}>
                         ${product.stock === 0 ? 'Out of Stock' : 'Add'}
                     </button>
                 </div>
@@ -181,7 +220,7 @@
             contentType: 'application/json',
             data: JSON.stringify({ cart: cart }),
             success: function (response) {
-                alert('Checkout successful!');
+                $('#successModal').modal('show'); // Show success modal
                 cart = []; // Clear cart
                 updateCart(); // Update cart display
             },
@@ -216,7 +255,8 @@
 
     // Utility function to show error messages
     function showError(message) {
-        alert(message);
+        $('#error-message').text(message).show(); // Display error message
+        setTimeout(() => $('#error-message').hide(), 5000); // Hide after 5 seconds
     }
 </script>
 
