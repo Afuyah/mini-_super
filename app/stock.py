@@ -95,7 +95,7 @@ def new_product():
         selling_price = request.form['selling_price']
         stock = request.form['stock']
         category_id = request.form['category']
-        supplier_id = request.form.get('supplier')
+       
 
         if Product.query.filter_by(name=name).first():
             flash(FLASH_PRODUCT_EXISTS)
@@ -107,7 +107,7 @@ def new_product():
             selling_price=float(selling_price),
             stock=int(stock),
             category_id=category_id,
-            supplier_id=supplier_id
+          
         )
         db.session.add(new_product)
         db.session.commit()
