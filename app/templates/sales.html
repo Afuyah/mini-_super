@@ -21,7 +21,7 @@
         <div class="col-md-6 product-container">
             <h5>Products</h5>
             <div class="product-list" id="product-list">
-                <p>Loading products...</p> <!-- Loading indicator -->
+               
             </div>
             <p id="no-products" style="display: none;">No products found for this category.</p>
         </div>
@@ -205,81 +205,5 @@
     }
 </script>
 
-<style>
-/* Overall styles */
-body {
-    background-color: #f0f4f8; /* Lighter background for better contrast */
-    font-family: 'Arial', sans-serif; /* More modern font */
 
-}
-
-.container {
-    border: 1px solid #007bff; /* Border around the main container */
-    padding: 20px; /* Padding inside the container */
-    border-radius: 10px; /* Rounded corners */
-    background: white; /* White background for container */
-}
-
-/* Category styles */
-.category-container,
-.product-container,
-.cart-container {
-    padding: 10px; /* More padding for a spacious layout */
-}
-
-/* Category styles */
-.category-list {
-    max-height: 300px; /* Limit height */
-    overflow-y: auto; /* Scrollable */
-    border: 1px solid #ccc; /* Light border for clarity */
-    border-radius: 5px; /* Slightly rounded corners */
-}
-
-.category-item {
-    padding: 12px; /* Padding for category items */
-    cursor: pointer; /* Pointer on hover */
-    transition: background-color 0.3s; /* Smooth transition */
-}
-
-.category-item:hover {
-    background-color: #007bff; /* Highlight color */
-    color: white; /* Text color on hover */
-}
-
-/* Product styles */
-.product-list {
-    display: flex;
-    flex-wrap: wrap; /* Responsive wrapping */
-}
-
-.product-item {
-    flex: 1 0 calc(45% - 20px);
-/* Responsive cards / margin: 10px; / Margin between cards / padding: 15px; / Padding inside each card / border-radius: 8px; / Rounded corners / background-color: #ffffff; / Card background color / box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); / Soft shadow for depth / transition: transform 0.2s; / Smooth hover effect */ }
-
-.product-item
-{ transform: scale(1.02); /* Slight zoom on hover */ }
-
-.product-title { font-weight: bold; /* Bold product title / margin-bottom: 5px; / Spacing below title */ }
-
-.product-price { color: #28a745; /* Green color for price / font-weight: bold; / Bold price */ }
-
-.product-stock { color: #6c757d; /* Gray color for stock */ }
-
-/* Cart styles / .cart-container { position: sticky; / Sticky cart / top: 0; / Stick to top of viewport */ }
-
-.cart-items { max-height: 300px; /* Limit cart height / overflow-y: auto; / Scrollable */ }
-
-.cart-item { display: flex; /* Flex layout for items / justify-content: space-between; / Space between elements / align-items: center; / Center vertically / margin-bottom: 10px; / Spacing between items */ }
-
-.btn { transition: background-color 0.2s, transform 0.2s; /* Button transition */ }
-
-.btn
-{ transform: translateY(-2px); /* Lift effect on hover */ }
-
-.btn-danger { background-color: #dc3545; /* Red for remove button */ }
-
-/* Alerts / .alert { margin-top: 15px; / Space above alerts / padding: 10px; / Padding inside alerts / border-radius: 5px; / Rounded corners */ }
-
-/* Media Queries for Responsiveness / @media (max-width: 768px) { .product-item { flex: 1 0 calc(100% - 20px); / Full width on small screens */ } }
- </style>
  {% endblock %}

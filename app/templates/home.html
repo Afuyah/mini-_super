@@ -3,8 +3,45 @@
 {% block title %}Suzy Shop{% endblock %}
 
 {% block content %}
-   
-    <p class="welcome-description">Mannage your stock and sales seamlessly!</p>
+<div class="container mt-5 text-center">
+    <h1 class="mb-4">Welcome to Suzy Shop!</h1>
+    <p class="welcome-description">Manage your stock and sales seamlessly!</p>
     <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-custom">Log in</a>
-    <a href="{{ url_for('auth.register') }}" class="btn btn-secondary btn-custom">Register</a>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+    body {
+        background-color: #f8f9fa; /* Light background for contrast */
+        font-family: 'Arial', sans-serif; /* Clean, modern font */
+    }
+
+    .container {
+        max-width: 600px; /* Centered content area */
+        margin: 0 auto; /* Centering container */
+        padding: 20px; /* Padding around the content */
+        border-radius: 8px; /* Rounded corners for the container */
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+        background-color: white; /* White background for the container */
+    }
+
+    .welcome-description {
+        font-size: 1.2em; /* Larger font for better readability */
+        color: #6c757d; /* Gray color for a softer look */
+        margin-bottom: 20px; /* Space below the description */
+    }
+
+    .btn-custom {
+        padding: 10px 20px; /* Increased padding for buttons */
+        font-size: 1.1em; /* Larger font for buttons */
+        transition: background-color 0.3s ease; /* Smooth transition on hover */
+    }
+
+    .btn-custom:hover {
+        background-color: #0056b3; /* Darker blue on hover */
+        color: white; /* White text on hover */
+    }
+</style>
 {% endblock %}
