@@ -4,11 +4,10 @@
 
 {% block content %}
 <div class="container mt-5 text-center">
-    <h1 class="mb-4">Welcome to Suzy Shop!</h1>
-    <p class="welcome-description">Manage your stock and sales seamlessly!</p>
+    <h1 class="mb-4 welcome-title">Nawiri's Enterprise</h1>
+    <p class="welcome-description">Management system!</p>
     <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-custom">Log in</a>
 </div>
-
 {% endblock %}
 
 {% block styles %}
@@ -25,6 +24,16 @@
         border-radius: 8px; /* Rounded corners for the container */
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
         background-color: white; /* White background for the container */
+        transition: transform 0.3s; /* Smooth transform on hover */
+    }
+
+    .container:hover {
+        transform: translateY(-5px); /* Slight lift on hover */
+    }
+
+    .welcome-title {
+        font-size: 2.5em; /* Increased size for emphasis */
+        color: #343a40; /* Darker color for better readability */
     }
 
     .welcome-description {
@@ -36,12 +45,24 @@
     .btn-custom {
         padding: 10px 20px; /* Increased padding for buttons */
         font-size: 1.1em; /* Larger font for buttons */
-        transition: background-color 0.3s ease; /* Smooth transition on hover */
+        transition: background-color 0.3s ease, transform 0.3s ease; /* Smooth transitions */
     }
 
     .btn-custom:hover {
         background-color: #0056b3; /* Darker blue on hover */
         color: white; /* White text on hover */
+        transform: scale(1.05); /* Slightly enlarge on hover */
+    }
+
+    /* Responsive Design */
+    @media (max-width: 600px) {
+        .container {
+            width: 90%; /* Take more width on smaller screens */
+        }
+        
+        .welcome-title {
+            font-size: 2em; /* Responsive title size */
+        }
     }
 </style>
 {% endblock %}

@@ -124,7 +124,6 @@ def new_product():
 
     return render_template('new_product.html', categories=categories, suppliers=suppliers)
 
-# Route to edit a product
 @stock_bp.route('/products/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_product(id: int):
@@ -137,28 +136,45 @@ def edit_product(id: int):
     suppliers = Supplier.query.all()
 
     if request.method == 'POST':
-        product.name = request.form['name']
-        product.cost_price = float(request.form['cost_price'])
-        product.selling_price = float(request.form['selling_price'])
-        product.stock = int(request.form['stock'])
-        product.category_id = request.form['category']
-        product.supplier_id = request.form.get('supplier')
+        try:
+            # Validate input
+            name = request.form['name']
+            cost_price = float(request.form['cost_price'])
+            selling_price = float(request.form['selling_price'])
+            stock = int(request.form['stock'])
 
-        db.session.commit()
-        flash(FLASH_PRODUCT_UPDATED.format(product.name))
+            if selling_price < cost_price:
+                flash("Selling price cannot be lower than cost price.", 'danger')
+                return redirect(url_for('stock.edit_product', id=id))
 
-        # Emit real-time stock update
-        socketio.emit('stock_updated', {
-            'id': product.id,
-            'name': product.name,
-            'stock': product.stock
-        }, broadcast=True)
+            # Update product data
+            product.name = name
+            product.cost_price = cost_price
+            product.selling_price = selling_price
+            product.stock = stock
+            product.category_id = request.form['category']
+            product.supplier_id = request.form.get('supplier', None)  # Optional supplier
 
-        return redirect(url_for('stock.products'))
+            db.session.commit()
+
+            flash(FLASH_PRODUCT_UPDATED.format(product.name), 'success')
+
+            # Emit real-time stock update
+            socketio.emit('stock_updated', {
+                'id': product.id,
+                'name': product.name,
+                'stock': product.stock
+            }, broadcast=True)
+
+            return redirect(url_for('stock.products'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"An error occurred: {str(e)}", 'danger')
+            return redirect(url_for('stock.edit_product', id=id))
 
     return render_template('edit_product.html', product=product, categories=categories, suppliers=suppliers)
 
-# Route to delete a product
 @stock_bp.route('/products/<int:id>/delete', methods=['POST'])
 @login_required
 def delete_product(id: int):
@@ -167,18 +183,25 @@ def delete_product(id: int):
         return redirect(url_for('stock.products'))
 
     product = Product.query.get_or_404(id)
-    db.session.delete(product)
-    db.session.commit()
-    flash(FLASH_PRODUCT_DELETED.format(product.name))
 
-    # Emit real-time stock update (stock set to 0)
-    socketio.emit('stock_updated', {
-        'id': product.id,
-        'name': product.name,
-        'stock': 0
-    }, broadcast=True)
+    try:
+        db.session.delete(product)
+        db.session.commit()
+        flash(FLASH_PRODUCT_DELETED.format(product.name), 'success')
+
+        # Emit real-time stock update (stock set to 0)
+        socketio.emit('stock_updated', {
+            'id': product.id,
+            'name': product.name,
+            'stock': 0
+        }, broadcast=True)
+
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while deleting the product. Please try again.', 'danger')
 
     return redirect(url_for('stock.products'))
+
 
 # Route for updating stock on a dedicated page
 @stock_bp.route('/admin_update_stock', methods=['GET', 'POST'])

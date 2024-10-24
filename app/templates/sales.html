@@ -15,13 +15,11 @@
                 </div>
                 {% endfor %}
             </div>
-            
         </div>
 
         <div class="col-md-6 product-container">
             <h5>Products</h5>
             <div class="product-list" id="product-list">
-               
             </div>
             <p id="no-products" style="display: none;">No products found for this category.</p>
         </div>
@@ -42,6 +40,23 @@
     <!-- Checkout Loading Indicator -->
     <div class="alert alert-info" id="checkout-loading" style="display: none;">Processing your checkout...</div>
 </div>
+
+<!-- Additional Styling -->
+<style>
+    .container {
+        max-width: 1200px; /* Adjust this value for desired width */
+        margin: 0 auto; /* Center the container */
+    }
+
+    /* Optional: style for the category and product items for better visibility */
+    .category-item, .product-item {
+        cursor: pointer; /* Indicates clickable items */
+    }
+
+    .category-item:hover, .product-item:hover {
+        background-color: #f0f0f0; /* Light background on hover */
+    }
+</style>
 
 <script>
     let cart = [];
@@ -205,5 +220,4 @@
     }
 </script>
 
-
- {% endblock %}
+{% endblock %}
