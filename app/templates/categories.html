@@ -3,6 +3,7 @@
 {% block content %}
 <div class="container mt-5">
     <h1>Categories</h1>
+      <a href="{{ url_for('stock.new_category') }}" class="btn btn-primary">Add New Category</a>
     <ul class="list-group mb-3">
         {% for category in categories %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -16,6 +17,6 @@
         </li>
         {% endfor %}
     </ul>
-    <a href="{{ url_for('stock.new_category') }}" class="btn btn-primary">Add New Category</a>
+  
 </div>
 {% endblock %}

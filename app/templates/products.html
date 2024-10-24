@@ -14,7 +14,9 @@
                 <tr>
                     <th>Name</th>
                     <th>Stock</th>
-                    <th>Price</th>
+                    <th>Cost Price</th>
+                    <th>Selling Price</th>
+                    <th>Supplier</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -23,7 +25,15 @@
                 <tr>
                     <td>{{ product.name }}</td>
                     <td>{{ product.stock }}</td>
-                    <td>Ksh {{ product.price }}</td>
+                    <td>Ksh {{ product.cost_price }}</td>
+                    <td>Ksh {{ product.selling_price }}</td>
+                    <td>
+                        {% if product.supplier %}
+                            {{ product.supplier.name }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
                     <td>
                         <a href="{{ url_for('stock.edit_product', id=product.id) }}" class="btn btn-warning btn-sm">Edit</a>
                         <form action="{{ url_for('stock.delete_product', id=product.id) }}" method="POST" style="display:inline;">

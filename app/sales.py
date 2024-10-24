@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from app.models import db, Product, Sale, CartItem, Category
-from app import socketio, limiter
+from app import socketio
 from flask_socketio import emit
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
@@ -14,7 +14,6 @@ def check_low_stock(product):
 
 # Route for cashier to view sales screen
 @sales_bp.route('/sales')
-@limiter.limit("200 per day")
 @login_required
 def sales_screen():
     categories = Category.query.all()
@@ -22,16 +21,14 @@ def sales_screen():
 
 # API to fetch products by category
 @sales_bp.route('/api/products/<int:category_id>', methods=['GET'])
-@limiter.limit("200 per day")
 @login_required
 def get_products_by_category(category_id):
     products = Product.query.filter_by(category_id=category_id).all()
-    product_list = [{'id': product.id, 'name': product.name, 'price': product.price, 'stock': product.stock} for product in products]
+    product_list = [{'id': product.id, 'name': product.name, 'selling_price': product.selling_price, 'stock': product.stock} for product in products]
     return jsonify({'products': product_list})
 
 # API to add item to cart (with quantity increment on repeated clicks)
 @sales_bp.route('/add_to_cart', methods=['POST'])
-@limiter.limit("500 per day")
 @login_required
 def add_to_cart():
     data = request.json
@@ -50,13 +47,15 @@ def add_to_cart():
         'product_id': product.id,
         'product_name': product.name,
         'quantity': quantity,
-        'price': product.price,
-        'total_price': product.price * quantity
+        'selling_price': product.selling_price,
+        'total_price': product.selling_price * quantity
     })
+
+from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 
 # API to handle checkout
 @sales_bp.route('/checkout', methods=['POST'])
-@limiter.limit("100 per hour")
 @login_required
 def checkout():
     data = request.json
@@ -69,16 +68,20 @@ def checkout():
 
     total_amount = 0
     for item in cart:
-        product = Product.query.get(item['id'])  # Changed from 'product_id' to 'id'
+        product = Product.query.get(item['id'])
         if product is None:
             return jsonify({'success': False, 'message': 'Product not found'}), 404
-        total_amount += product.price * item['quantity']
+        total_amount += product.selling_price * item['quantity']
 
+    # Create the Sale object
     sale = Sale(date=datetime.utcnow(), total=total_amount, payment_method=payment_method,
                 customer_name=customer_name if payment_method == 'credit' else None)
     db.session.add(sale)
 
     try:
+        # First, commit the sale to get a valid sale_id
+        db.session.commit()
+
         for item in cart:
             product = Product.query.get(item['id'])
             if product.stock < item['quantity']:
@@ -86,31 +89,31 @@ def checkout():
                 return jsonify({'success': False, 'message': f'Insufficient stock for {product.name}'}), 400
 
             product.stock -= item['quantity']
-            # No commit here yet, we will do it after the loop
 
             cart_item = CartItem(product_id=product.id, quantity=item['quantity'], sale_id=sale.id)
             db.session.add(cart_item)
 
-        db.session.commit()  # Commit all changes at once
+        db.session.commit()
 
         # Emit real-time updates after successful commit
         for item in cart:
             product = Product.query.get(item['id'])
             socketio.emit('stock_updated', {'id': product.id, 'name': product.name, 'stock': product.stock}, broadcast=True)
-            if check_low_stock(product):
+            if product.is_low_stock():
                 socketio.emit('low_stock_alert', {'product_name': product.name, 'stock': product.stock}, broadcast=True)
 
         return jsonify({'success': True, 'message': 'Sale completed successfully'})
-    except IntegrityError:
+    except IntegrityError as e:
         db.session.rollback()
+        logging.error(f'Integrity error during transaction: {e}')
         return jsonify({'success': False, 'message': 'Integrity error during transaction'}), 400
     except Exception as e:
         db.session.rollback()
+        logging.error(f'Error during transaction: {e}')
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @sales_bp.route('/reports/daily', methods=['GET'])
-@limiter.limit("50 per day")
 @login_required
 def daily_sales_report():
     today = datetime.today().date()  # Get today's date
@@ -121,16 +124,13 @@ def daily_sales_report():
 
     return render_template('daily_sales_report.html', sales=sales, today=today)
 
-
 # Weekly sales report
 @sales_bp.route('/reports/weekly', methods=['GET'])
-@limiter.limit("50 per week")
 @login_required
 def weekly_sales_report():
     one_week_ago = datetime.utcnow().date() - timedelta(days=7)
     sales = Sale.query.filter(Sale.date >= one_week_ago).all()
     return render_template('weekly_sales_report.html', sales=sales)
-
 
 @sales_bp.route('/reports/filter', methods=['POST'])
 @login_required

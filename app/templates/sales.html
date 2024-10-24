@@ -3,10 +3,11 @@
 {% block title %}Sales Screen{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-2">
     <div class="row">
-        <div class="col-md-3 category-container border border-secondary rounded p-3">
+        <div class="col-md-3 category-container border border-secondary rounded">
             <h5>Categories</h5>
+            <input type="text" id="search" class="form-control mb-3" placeholder="Search products...">
             <div class="category-list" id="category-list">
                 {% for category in categories %}
                 <div class="category-item" data-category="{{ category.id }}">
@@ -14,10 +15,10 @@
                 </div>
                 {% endfor %}
             </div>
-            <input type="text" id="search" class="form-control mb-3" placeholder="Search products...">
+            
         </div>
 
-        <div class="col-md-6 product-container border border-secondary rounded p-3">
+        <div class="col-md-6 product-container">
             <h5>Products</h5>
             <div class="product-list" id="product-list">
                 <p>Loading products...</p> <!-- Loading indicator -->
@@ -37,6 +38,9 @@
     <div class="alert alert-warning mt-4" id="low-stock-alert" style="display: none;">
         <strong>Warning!</strong> Some products are low on stock.
     </div>
+
+    <!-- Checkout Loading Indicator -->
+    <div class="alert alert-info" id="checkout-loading" style="display: none;">Processing your checkout...</div>
 </div>
 
 <script>
@@ -60,7 +64,7 @@
                 }
             },
             error: function () {
-                alert('Failed to load products. Please try again.');
+                showError('Failed to load products. Please try again.');
                 $('#product-list').empty(); // Clear the product list on error
             }
         });
@@ -74,15 +78,15 @@
             $('#product-list').append(`
                 <div class="product-item border border-primary rounded p-2 mb-3" data-id="${product.id}">
                     <h5 class="product-title">${product.name} ${lowStockWarning}</h5>
-                    <p class="product-price">Price: Ksh ${product.price}</p>
+                    <p class="product-price">Ksh ${product.selling_price}</p>
                     <p class="product-stock">Stock: ${product.stock}</p>
                     <button class="btn btn-primary add-to-cart" 
                         data-id="${product.id}" 
                         data-name="${product.name}" 
-                        data-price="${product.price}" 
+                        data-selling-price="${product.selling_price}" 
                         data-stock="${product.stock}" 
                         ${product.stock === 0 ? 'disabled' : ''}>
-                        ${product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                        ${product.stock === 0 ? 'Out of Stock' : 'Add'}
                     </button>
                 </div>
             `);
@@ -93,7 +97,7 @@
     $(document).on('click', '.add-to-cart', function () {
         const productId = $(this).data('id');
         const productName = $(this).data('name');
-        const productPrice = parseFloat($(this).data('price'));
+        const productSellingPrice = parseFloat($(this).data('selling-price'));
         const productStock = parseInt($(this).data('stock'));
 
         const existingItem = cart.find(item => item.id === productId);
@@ -101,11 +105,11 @@
             if (existingItem.quantity < productStock) {
                 existingItem.quantity += 1;
             } else {
-                alert('Cannot add more of this item. Stock limit reached.');
+                showError('Cannot add more of this item. Stock limit reached.');
                 return;
             }
         } else {
-            cart.push({ id: productId, name: productName, price: productPrice, quantity: 1 });
+            cart.push({ id: productId, name: productName, selling_price: productSellingPrice, quantity: 1 });
         }
         updateCart();
     });
@@ -126,13 +130,12 @@
         cart.forEach(item => {
             $('#cart-items').append(`
                 <div class="cart-item">
-                    ${item.name} - Ksh ${item.price} x ${item.quantity} 
+                    ${item.name} - Ksh ${item.selling_price} x ${item.quantity} 
                     <button class="btn btn-danger btn-sm remove-from-cart" data-id="${item.id}">X</button>
                 </div>
             `);
-            total += item.price * item.quantity;
+            total += item.selling_price * item.quantity;
 
-            // Check for low stock condition
             const productStock = parseInt($(`.product-item[data-id="${item.id}"] .add-to-cart`).data('stock'));
             if (productStock - item.quantity < 5) {
                 lowStockItems.push(item.name);
@@ -150,11 +153,12 @@
     // Handle checkout
     $('#checkout-btn').click(function () {
         if (cart.length === 0) {
-            alert('Your cart is empty!');
+            showError('Your cart is empty!');
             return;
         }
 
         $(this).prop('disabled', true); // Disable the checkout button
+        $('#checkout-loading').show(); // Show loading indicator
 
         $.ajax({
             url: '/sales/checkout', // Adjust to your actual checkout endpoint
@@ -167,10 +171,11 @@
                 updateCart(); // Update cart display
             },
             error: function () {
-                alert('Checkout failed. Please try again.');
+                showError('Checkout failed. Please try again.');
             },
             complete: function () {
                 $('#checkout-btn').prop('disabled', false); // Re-enable the checkout button
+                $('#checkout-loading').hide(); // Hide loading indicator
             }
         });
     });
@@ -179,89 +184,102 @@
     $('#search').on('input', function() {
         const searchTerm = $(this).val().toLowerCase();
         
-        // Filter products by name
         $('.product-item').filter(function() {
             $(this).toggle($(this).find('.product-title').text().toLowerCase().indexOf(searchTerm) > -1);
         });
 
-        // No products found message
         if ($('#product-list').children(':visible').length === 0) {
             $('#no-products').show();
         } else {
             $('#no-products').hide();
         }
 
-        // Filter categories by name
         $('.category-item').filter(function() {
             $(this).toggle($(this).text().toLowerCase().indexOf(searchTerm) > -1);
         });
     });
+
+    // Utility function to show error messages
+    function showError(message) {
+        alert(message);
+    }
 </script>
 
 <style>
 /* Overall styles */
 body {
-    background-color: #f8f9fa;
+    background-color: #f0f4f8; /* Lighter background for better contrast */
+    font-family: 'Arial', sans-serif; /* More modern font */
+
 }
 
 .container {
-    border: 4px double #007bff; /* Double border around the main container */
+    border: 1px solid #007bff; /* Border around the main container */
     padding: 20px; /* Padding inside the container */
+    border-radius: 10px; /* Rounded corners */
+    background: white; /* White background for container */
 }
 
 /* Category styles */
 .category-container,
 .product-container,
 .cart-container {
-    padding: 15px;
+    padding: 10px; /* More padding for a spacious layout */
 }
 
 /* Category styles */
 .category-list {
-    max-height: 400px;
-    overflow-y: auto;
+    max-height: 300px; /* Limit height */
+    overflow-y: auto; /* Scrollable */
+    border: 1px solid #ccc; /* Light border for clarity */
+    border-radius: 5px; /* Slightly rounded corners */
 }
 
 .category-item {
-    padding: 10px;
-    cursor: pointer;
-    transition: background-color 0.3s;
+    padding: 12px; /* Padding for category items */
+    cursor: pointer; /* Pointer on hover */
+    transition: background-color 0.3s; /* Smooth transition */
 }
 
 .category-item:hover {
-    background-color: #007bff;
-    color: white;
+    background-color: #007bff; /* Highlight color */
+    color: white; /* Text color on hover */
 }
 
 /* Product styles */
 .product-list {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: wrap; /* Responsive wrapping */
 }
 
 .product-item {
-    flex-basis: calc(30% - 20px); /* Responsive layout */
-    margin: 10px; /* Spacing between cards */
-    padding: 15px; /* Padding inside each card */
-    border-radius: 8px; /* Rounded corners */
-    background-color: white; /* Card background color */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-}
+    flex: 1 0 calc(45% - 20px);
+/* Responsive cards / margin: 10px; / Margin between cards / padding: 15px; / Padding inside each card / border-radius: 8px; / Rounded corners / background-color: #ffffff; / Card background color / box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); / Soft shadow for depth / transition: transform 0.2s; / Smooth hover effect */ }
 
-.product-item:hover {
-    transform: scale(1.05); /* Slightly enlarge on hover */
-}
+.product-item
+{ transform: scale(1.02); /* Slight zoom on hover */ }
 
-.product-title {
-    font-size: 1.1em; /* Increased font size */
-}
+.product-title { font-weight: bold; /* Bold product title / margin-bottom: 5px; / Spacing below title */ }
 
-/* Cart styles */
-.cart-summary {
-   max-height: 400px;
-   overflow-y: auto; /* Scrollable if too many items */
-   padding-top: 10px; /* Space above the summary */
-}
-</style>
+.product-price { color: #28a745; /* Green color for price / font-weight: bold; / Bold price */ }
 
-{% endblock %}
+.product-stock { color: #6c757d; /* Gray color for stock */ }
+
+/* Cart styles / .cart-container { position: sticky; / Sticky cart / top: 0; / Stick to top of viewport */ }
+
+.cart-items { max-height: 300px; /* Limit cart height / overflow-y: auto; / Scrollable */ }
+
+.cart-item { display: flex; /* Flex layout for items / justify-content: space-between; / Space between elements / align-items: center; / Center vertically / margin-bottom: 10px; / Spacing between items */ }
+
+.btn { transition: background-color 0.2s, transform 0.2s; /* Button transition */ }
+
+.btn
+{ transform: translateY(-2px); /* Lift effect on hover */ }
+
+.btn-danger { background-color: #dc3545; /* Red for remove button */ }
+
+/* Alerts / .alert { margin-top: 15px; / Space above alerts / padding: 10px; / Padding inside alerts / border-radius: 5px; / Rounded corners */ }
+
+/* Media Queries for Responsiveness / @media (max-width: 768px) { .product-item { flex: 1 0 calc(100% - 20px); / Full width on small screens */ } }
+ </style>
+ {% endblock %}

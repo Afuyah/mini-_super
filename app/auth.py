@@ -1,16 +1,13 @@
-# app/auth.py
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import func  # Import func from sqlalchemy
 from app.models import User, db, Role, Sale, Product
-from app import limiter
 from werkzeug.security import generate_password_hash, check_password_hash
 
 auth_bp = Blueprint('auth', __name__)
 
 # Route for user registration (admin only)
 @auth_bp.route('/register', methods=['GET', 'POST'])
-@limiter.limit("50 per hour")
 @login_required
 def register():
     if not current_user.is_admin():
@@ -43,7 +40,6 @@ def register():
 
 # Route for user login
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")
 def login():
     if request.method == 'POST':
         username = request.form['username']
@@ -90,32 +86,15 @@ def admin_dashboard():
     low_stock_threshold = 10
     low_stock_products = Product.query.filter(Product.stock <= low_stock_threshold).all()
 
-    # Sales trends (for PostgreSQL, using TO_CHAR to truncate by month)
-    sales_by_month = db.session.query(
-        func.to_char(Sale.date, 'YYYY-MM').label('month'), 
-        func.sum(Sale.total).label('total_sales')
-    ).group_by('month').order_by('month').all()
-
-    # Convert sales trends into format suitable for chart (e.g., month names and totals)
-    sales_trends_labels = [sale[0] for sale in sales_by_month]  # Formatting as "YYYY-MM"
-    sales_trends_data = [sale[1] for sale in sales_by_month]
-
-    # Set default values if the lists are empty
-    if not sales_trends_labels:
-        sales_trends_labels = ["No Sales Data"]
-    if not sales_trends_data:
-        sales_trends_data = [0]
-
     return render_template(
         'admin_dashboard.html',
         total_sales=total_sales,
         total_transactions=total_transactions,
         total_revenue=total_revenue,
         recent_sales=recent_sales,
-        low_stock_products=low_stock_products,
-        sales_trends_labels=sales_trends_labels,
-        sales_trends_data=sales_trends_data
+        low_stock_products=low_stock_products
     )
+
 
 # Example protected route for cashier dashboard
 @auth_bp.route('/cashier_dashboard')

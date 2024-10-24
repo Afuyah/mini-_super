@@ -3,10 +3,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from enum import Enum
 from datetime import datetime
-from sqlalchemy import func, Index
-from sqlalchemy.orm import validates  # Import validates for input validation
+from sqlalchemy import func, Index, ForeignKey
+from sqlalchemy.orm import validates
 from app import db
-
 
 # User Roles Enum
 class Role(Enum):
@@ -20,6 +19,8 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(100), unique=True, nullable=False, index=True)  
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.Enum(Role), nullable=False)
+
+    __table_args__ = (Index('ix_user_role', 'role'),)  # Index on role for faster queries
 
     def set_password(self, password):
         """Hashes the password."""
@@ -40,43 +41,57 @@ class Category(db.Model):
     __tablename__ = 'categories'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    products = db.relationship('Product', backref='category', lazy='joined')  # Join on query to reduce additional queries
+    products = db.relationship('Product', backref='category', lazy='joined')
 
-# Product Model with Input Validation and Low Stock Alert
+# Product Model with Cost Price, Selling Price, and Profit Calculation
 class Product(db.Model):
     __tablename__ = 'products'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
-    price = db.Column(db.Float, nullable=False, default=0.0)  # Ensure price defaults to 0.0
-    stock = db.Column(db.Integer, nullable=False, default=0)  # Ensure stock defaults to 0
+    cost_price = db.Column(db.Float, nullable=False, default=0.0)
+    selling_price = db.Column(db.Float, nullable=False, default=0.0)
+    stock = db.Column(db.Integer, nullable=False, default=0)
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
-    sale_items = db.relationship('CartItem', backref='product', lazy='joined')  # Use joined loading for optimization
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=True)
+    sale_items = db.relationship('CartItem', backref='product', lazy='joined')
 
-    # Add indexes for faster querying by category
-    __table_args__ = (Index('ix_product_category_id', 'category_id'), )
-
-    @validates('price', 'stock')
-    def validate_price_stock(self, key, value):
-        """Validate price and stock to avoid negative values."""
-        if key == 'price' and value < 0:
-            raise ValueError("Price cannot be negative")
+    @validates('cost_price', 'selling_price', 'stock')
+    def validate_cost_selling_stock(self, key, value):
+        if key in ['cost_price', 'selling_price'] and value < 0:
+            raise ValueError(f"{key.replace('_', ' ').title()} cannot be negative")
         if key == 'stock' and value < 0:
             raise ValueError("Stock cannot be negative")
         return value
 
+    def calculate_profit(self):
+        """Calculates profit per item sold."""
+        return self.selling_price - self.cost_price if self.selling_price > self.cost_price else 0.0
+
     def is_low_stock(self):
-        """Returns True if the stock is below a certain threshold."""
-        return self.stock < 10  # Threshold for low stock alert, can be adjusted
+        return self.stock < 10
+
+    def __repr__(self):
+        return f'<Product {self.name}, Supplier {self.supplier_id}>'
+
 
 # Sale Model with Auto Stock Update and Total Price Indexing
 class Sale(db.Model):
     __tablename__ = 'sales'
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # Indexed for time-based queries
+    date = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     total = db.Column(db.Float, nullable=False)
     payment_method = db.Column(db.String(50), nullable=False)  # 'cash', 'mpesa', 'credit'
-    customer_name = db.Column(db.String(200), nullable=True)  # Optional
-    cart_items = db.relationship('CartItem', backref='sale', lazy='joined')  # Use joined loading for optimization
+    customer_name = db.Column(db.String(200), nullable=True)
+    cart_items = db.relationship('CartItem', backref='sale', lazy='joined')
+
+    __table_args__ = (Index('ix_sale_total', 'total'), Index('ix_sale_date', 'date'))
+
+    @validates('payment_method')
+    def validate_payment_method(self, key, value):
+        allowed_methods = {'cash', 'mpesa', 'credit'}
+        if value not in allowed_methods:
+            raise ValueError(f"Invalid payment method: {value}")
+        return value
 
     def serialize(self):
         """Convert the Sale object to a dictionary format for JSON serialization."""
@@ -92,13 +107,11 @@ class Sale(db.Model):
     def finalize_sale(self):
         """Automatically updates stock after a sale."""
         for item in self.cart_items:
-            item.product.stock -= item.quantity
-            if item.product.stock < 0:
+            if item.product.stock < item.quantity:
                 raise ValueError(f"Not enough stock for {item.product.name}")
+        for item in self.cart_items:
+            item.product.stock -= item.quantity
         db.session.commit()
-
-    # Add index for total field to improve performance in queries related to total price
-    __table_args__ = (Index('ix_sale_total', 'total'), Index('ix_sale_date', 'date'))
 
 # CartItem Model
 class CartItem(db.Model):
@@ -107,6 +120,13 @@ class CartItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     sale_id = db.Column(db.Integer, db.ForeignKey('sales.id'), nullable=False)
+
+    @validates('quantity')
+    def validate_quantity(self, key, value):
+        """Validate that the quantity is greater than zero."""
+        if value <= 0:
+            raise ValueError("Quantity must be greater than zero.")
+        return value
 
     def __repr__(self):
         return f'<CartItem product_id={self.product_id}, quantity={self.quantity}>'
@@ -117,8 +137,49 @@ class CartItem(db.Model):
         return {
             'product_name': product.name,
             'quantity': self.quantity,
-            'total_price': self.quantity * product.price
+            'total_price': self.quantity * product.selling_price,  # Calculate total based on selling price
+            'profit_per_item': product.calculate_profit()  # Profit per item
         }
 
-# Add necessary indexes for performance improvements
-Index('ix_sale_date', Sale.date)
+# Expense Model
+class Expense(db.Model):
+    __tablename__ = 'expenses'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    category = db.Column(db.String(100), nullable=False)  # e.g., 'utilities', 'rent', etc.
+
+    __table_args__ = (Index('ix_expense_date', 'date'),)
+
+    @validates('amount')
+    def validate_amount(self, key, value):
+        """Validate that the expense amount is not negative."""
+        if value < 0:
+            raise ValueError("Expense amount cannot be negative")
+        return value
+
+    def serialize(self):
+        """Convert the Expense object to a dictionary format for JSON serialization."""
+        return {
+            'id': self.id,
+            'description': self.description,
+            'amount': self.amount,
+            'date': self.date.strftime("%Y-%m-%d %H:%M:%S"),
+            'category': self.category
+        }
+
+
+class Supplier(db.Model):
+    __tablename__ = 'suppliers'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False)
+    contact_person = db.Column(db.String(100), nullable=True)  # Optional contact person
+    phone = db.Column(db.String(20), nullable=True)  # Optional phone number
+    email = db.Column(db.String(100), nullable=True)  # Optional email address
+    address = db.Column(db.String(250), nullable=True)  # Optional address
+    products = db.relationship('Product', backref='supplier', lazy='joined')  # Relationship with Product
+
+    def __repr__(self):
+        return f'<Supplier {self.name}>'
+  

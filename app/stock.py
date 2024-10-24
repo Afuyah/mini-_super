@@ -1,8 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
-from app.models import db, Product, Category
-from app import socketio, limiter
-from flask_socketio import emit
+from app.models import db, Product, Category, Supplier, Expense  # Include Expense model
+from app import socketio
 
 stock_bp = Blueprint('stock', __name__)
 
@@ -17,17 +16,17 @@ FLASH_PRODUCT_ADDED = 'Product "{}" added successfully.'
 FLASH_PRODUCT_UPDATED = 'Product "{}" updated successfully.'
 FLASH_PRODUCT_DELETED = 'Product "{}" deleted successfully.'
 FLASH_INSUFFICIENT_STOCK = 'Insufficient stock for {}.'
+FLASH_STOCK_UPDATED = 'Stock for "{}" updated successfully.'
 
-# Rate limit for stock operations
+# Route to manage product categories
 @stock_bp.route('/categories')
-@limiter.limit("100 per hour")
 @login_required
 def categories():
     categories = Category.query.all()
     return render_template('categories.html', categories=categories)
 
+# Route to create a new category
 @stock_bp.route('/categories/new', methods=['GET', 'POST'])
-@limiter.limit("50 per hour")
 @login_required
 def new_category():
     if not current_user.is_admin():
@@ -48,8 +47,8 @@ def new_category():
 
     return render_template('new_category.html')
 
+# Route to edit an existing category
 @stock_bp.route('/categories/<int:id>/edit', methods=['GET', 'POST'])
-@limiter.limit("50 per hour")
 @login_required
 def edit_category(id: int):
     category = Category.query.get_or_404(id)
@@ -62,8 +61,8 @@ def edit_category(id: int):
 
     return render_template('edit_category.html', category=category)
 
+# Route to delete a category
 @stock_bp.route('/categories/<int:id>/delete', methods=['POST'])
-@limiter.limit("20 per hour")
 @login_required
 def delete_category(id: int):
     category = Category.query.get_or_404(id)
@@ -72,15 +71,15 @@ def delete_category(id: int):
     flash(FLASH_CATEGORY_DELETED.format(category.name))
     return redirect(url_for('stock.categories'))
 
+# Route to manage products
 @stock_bp.route('/products')
-@limiter.limit("100 per hour")
 @login_required
 def products():
     products = Product.query.all()
     return render_template('products.html', products=products)
 
+# Route to add a new product
 @stock_bp.route('/products/new', methods=['GET', 'POST'])
-@limiter.limit("50 per hour")
 @login_required
 def new_product():
     if not current_user.is_admin():
@@ -88,12 +87,15 @@ def new_product():
         return redirect(url_for('stock.products'))
 
     categories = Category.query.all()
+    suppliers = Supplier.query.all()
 
     if request.method == 'POST':
         name = request.form['name']
-        price = request.form['price']
+        cost_price = request.form['cost_price']
+        selling_price = request.form['selling_price']
         stock = request.form['stock']
         category_id = request.form['category']
+        supplier_id = request.form.get('supplier')
 
         if Product.query.filter_by(name=name).first():
             flash(FLASH_PRODUCT_EXISTS)
@@ -101,9 +103,11 @@ def new_product():
 
         new_product = Product(
             name=name,
-            price=float(price),
+            cost_price=float(cost_price),
+            selling_price=float(selling_price),
             stock=int(stock),
-            category_id=category_id
+            category_id=category_id,
+            supplier_id=supplier_id
         )
         db.session.add(new_product)
         db.session.commit()
@@ -118,10 +122,10 @@ def new_product():
 
         return redirect(url_for('stock.products'))
 
-    return render_template('new_product.html', categories=categories)
+    return render_template('new_product.html', categories=categories, suppliers=suppliers)
 
+# Route to edit a product
 @stock_bp.route('/products/<int:id>/edit', methods=['GET', 'POST'])
-@limiter.limit("50 per hour")
 @login_required
 def edit_product(id: int):
     if not current_user.is_admin():
@@ -130,12 +134,15 @@ def edit_product(id: int):
 
     product = Product.query.get_or_404(id)
     categories = Category.query.all()
+    suppliers = Supplier.query.all()
 
     if request.method == 'POST':
         product.name = request.form['name']
-        product.price = float(request.form['price'])
+        product.cost_price = float(request.form['cost_price'])
+        product.selling_price = float(request.form['selling_price'])
         product.stock = int(request.form['stock'])
         product.category_id = request.form['category']
+        product.supplier_id = request.form.get('supplier')
 
         db.session.commit()
         flash(FLASH_PRODUCT_UPDATED.format(product.name))
@@ -149,10 +156,10 @@ def edit_product(id: int):
 
         return redirect(url_for('stock.products'))
 
-    return render_template('edit_product.html', product=product, categories=categories)
+    return render_template('edit_product.html', product=product, categories=categories, suppliers=suppliers)
 
+# Route to delete a product
 @stock_bp.route('/products/<int:id>/delete', methods=['POST'])
-@limiter.limit("20 per hour")
 @login_required
 def delete_product(id: int):
     if not current_user.is_admin():
@@ -173,24 +180,81 @@ def delete_product(id: int):
 
     return redirect(url_for('stock.products'))
 
-# Route to handle real-time stock updates after sales
-@stock_bp.route('/update_stock/<int:product_id>/<int:quantity>', methods=['POST'])
+# Route for updating stock on a dedicated page
+@stock_bp.route('/admin_update_stock', methods=['GET', 'POST'])
 @login_required
-@limiter.limit("100 per hour")
-def update_stock(product_id: int, quantity: int):
-    if not current_user.is_admin() and not current_user.is_cashier():
+def update_stock():
+    if not current_user.is_admin():
+        flash(FLASH_ACCESS_DENIED)
+        return redirect(url_for('stock.products'))
+
+    products = Product.query.all()
+
+    if request.method == 'POST':
+        product_id = request.form['product_id']
+        quantity_to_add = int(request.form['quantity'])
+
+        product = Product.query.get_or_404(product_id)
+
+        # Update stock
+        product.stock += quantity_to_add
+        db.session.commit()
+
+        # Log the stock addition
+        new_expense = Expense(description=f"Stock added for {product.name}", amount=quantity_to_add, category="Stock Update")
+        db.session.add(new_expense)
+        db.session.commit()
+
+        flash(FLASH_STOCK_UPDATED.format(product.name))
+
+        # Emit real-time stock update
+        socketio.emit('stock_updated', {
+            'id': product.id,
+            'name': product.name,
+            'stock': product.stock
+        }, broadcast=True)
+
+        return redirect(url_for('stock.update_stock'))
+
+    return render_template('update_stock.html', products=products)
+
+# Route to display the update stock modal
+@stock_bp.route('/products/<int:product_id>/update_stock_modal', methods=['GET'])
+@login_required
+def update_stock_modal(product_id: int):
+    if not current_user.is_admin():
         flash(FLASH_ACCESS_DENIED)
         return redirect(url_for('stock.products'))
 
     product = Product.query.get_or_404(product_id)
+    return render_template('update_stock_modal.html', product=product)
+
+# Route to handle stock updates from the modal form
+@stock_bp.route('/products/<int:product_id>/update_stock', methods=['POST'])
+@login_required
+def update_stock_product(product_id: int):
+    if not current_user.is_admin():
+        flash(FLASH_ACCESS_DENIED)
+        return redirect(url_for('stock.products'))
+
+    product = Product.query.get_or_404(product_id)
+    quantity_to_add = int(request.form['quantity'])
     
-    if product.stock < quantity:
-        flash(FLASH_INSUFFICIENT_STOCK.format(product.name))
-        return jsonify(success=False), 400
-
-    product.stock -= quantity
+    # Update stock
+    product.stock += quantity_to_add
     db.session.commit()
-
+    
+    # Log the stock addition
+    new_expense = Expense(
+        description=f"Stock added for {product.name}",
+        amount=quantity_to_add,
+        category="Stock Update"
+    )
+    db.session.add(new_expense)
+    db.session.commit()
+    
+    flash(FLASH_PRODUCT_UPDATED.format(product.name))
+    
     # Emit real-time stock update
     socketio.emit('stock_updated', {
         'id': product.id,
@@ -198,11 +262,4 @@ def update_stock(product_id: int, quantity: int):
         'stock': product.stock
     }, broadcast=True)
 
-    # Check for low stock and emit alert
-    if product.stock < 5:
-        socketio.emit('low_stock_alert', {
-            'product_name': product.name,
-            'stock': product.stock
-        }, broadcast=True)
-
-    return jsonify(success=True, stock=product.stock)
+    return redirect(url_for('stock.update_stock'))  # Redirect back to the update stock page
